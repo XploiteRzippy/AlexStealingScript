@@ -1,0 +1,389 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+-- UI Setup
+local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "SpookyUI"
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 180, 0, 230) -- smaller height
+mainFrame.Position = UDim2.new(0.75, 0, 0.45, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local cornerMain = Instance.new("UICorner", mainFrame)
+cornerMain.CornerRadius = UDim.new(0, 12)
+
+local stroke = Instance.new("UIStroke", mainFrame)
+stroke.Color = Color3.fromRGB(255, 120, 0)
+stroke.Thickness = 2
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "🎃 ALEXINI SCRIPTINI 🕸"
+title.Font = Enum.Font.Creepster
+title.TextColor3 = Color3.fromRGB(255, 120, 0)
+title.TextSize = 22
+
+local layout = Instance.new("UIListLayout", mainFrame)
+layout.Padding = UDim.new(0, 4) -- tighter padding
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.VerticalAlignment = Enum.VerticalAlignment.Top
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function createButton(name, text)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0.85, 0, 0, 32)
+	btn.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+	btn.Text = text
+	btn.Font = Enum.Font.Creepster
+	btn.TextColor3 = Color3.fromRGB(255, 120, 0)
+	btn.TextSize = 16
+	btn.TextStrokeTransparency = 0.8
+	local corner = Instance.new("UICorner", btn)
+	corner.CornerRadius = UDim.new(0, 8)
+	btn.Parent = mainFrame
+	return btn
+end
+
+-- Buttons
+local desyncButton = createButton("Desync", "💀 Desync")
+local espButton = createButton("ESP", "👁 ESP")
+local flyButton = createButton("Fly", "🕸 Fly Mode")
+local floorButton = createButton("3rdFloor", "🧱 3rd Floor")
+local speedButton = createButton("Speed", "⚡ Speed Boost")
+
+-- Toggle Button
+local toggle = Instance.new("TextButton", screenGui)
+toggle.Size = UDim2.new(0, 70, 0, 25)
+toggle.Position = UDim2.new(0.75, 0, 0.42, 0)
+toggle.Text = "👻 UI"
+toggle.Font = Enum.Font.Creepster
+toggle.TextSize = 16
+toggle.TextColor3 = Color3.fromRGB(255, 120, 0)
+toggle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggle.Active = true
+toggle.Draggable = true
+local toggleCorner = Instance.new("UICorner", toggle)
+toggleCorner.CornerRadius = UDim.new(0, 8)
+
+toggle.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+------------------------------------------------------------
+-- DESYNC SCRIPT
+------------------------------------------------------------
+local desyncActive = false
+local function enableMobileDesync()
+	local success, errorMsg = pcall(function()
+		local backpack = LocalPlayer:WaitForChild("Backpack")
+		local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+		local humanoid = character:WaitForChild("Humanoid")
+
+		local packages = ReplicatedStorage:WaitForChild("Packages", 5)
+		if not packages then warn("❌ Packages not found") return false end
+		local netFolder = packages:WaitForChild("Net", 5)
+		if not netFolder then warn("❌ Net folder not found") return false end
+		local useItemRemote = netFolder:WaitForChild("RE/UseItem", 5)
+		local teleportRemote = netFolder:WaitForChild("RE/QuantumCloner/OnTeleport", 5)
+		if not useItemRemote or not teleportRemote then warn("❌ Remotes not found") return false end
+
+		local toolNames = {"Quantum Cloner", "Brainrot", "brainrot"}
+		local tool
+		for _, toolName in ipairs(toolNames) do
+			tool = backpack:FindFirstChild(toolName) or character:FindFirstChild(toolName)
+			if tool then break end
+		end
+		if not tool then
+			for _, item in ipairs(backpack:GetChildren()) do
+				if item:IsA("Tool") then tool = item break end
+			end
+		end
+
+		if tool and tool.Parent == backpack then
+			humanoid:EquipTool(tool)
+			task.wait(0.5)
+		end
+
+		if setfflag then setfflag("WorldStepMax", "-9999999999") end
+		task.wait(0.2)
+		useItemRemote:FireServer()
+		task.wait(1)
+		teleportRemote:FireServer()
+		task.wait(2)
+		if setfflag then setfflag("WorldStepMax", "-1") end
+		print("✅ Mobile Desync activated!")
+	end)
+	if not success then
+		warn("❌ Error enabling desync: " .. tostring(errorMsg))
+		return false
+	end
+	return true
+end
+
+local function disableMobileDesync()
+	pcall(function()
+		if setfflag then setfflag("WorldStepMax", "-1") end
+		print("❌ Desync disabled!")
+	end)
+end
+
+desyncButton.MouseButton1Click:Connect(function()
+	desyncActive = not desyncActive
+	if desyncActive then
+		local success = enableMobileDesync()
+		if success then
+			desyncButton.BackgroundColor3 = Color3.fromRGB(200, 200, 0)
+		else
+			desyncActive = false
+			desyncButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+		end
+	else
+		disableMobileDesync()
+		desyncButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+	end
+end)
+
+------------------------------------------------------------
+-- FLY BUTTON
+------------------------------------------------------------
+local flyOn = false
+local flyConn
+
+flyButton.MouseButton1Click:Connect(function()
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	flyOn = not flyOn
+	flyButton.BackgroundColor3 = flyOn and Color3.fromRGB(200,200,0) or Color3.fromRGB(220,20,60)
+	if flyOn then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			flyConn = RunService.RenderStepped:Connect(function()
+				if flyOn and hrp then
+					local cam = workspace.CurrentCamera
+					local moveDir = cam.CFrame.LookVector * 25
+					if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+						hrp.Velocity = Vector3.new(moveDir.X, 50, moveDir.Z)
+					elseif UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+						hrp.Velocity = Vector3.new(moveDir.X, -50, moveDir.Z)
+					else
+						hrp.Velocity = moveDir
+					end
+				end
+			end)
+		end
+	else
+		if flyConn then flyConn:Disconnect() flyConn=nil end
+		if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+	end
+end)
+
+------------------------------------------------------------
+-- 3RD FLOOR BUTTON
+------------------------------------------------------------
+local platform, connection
+local active, isRising = false, false
+local RISE_SPEED = 15
+
+local function destroyPlatform()
+	if platform then platform:Destroy() platform=nil end
+	active=false isRising=false
+	if connection then connection:Disconnect() connection=nil end
+	floorButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+end
+
+local function canRise()
+	if not platform then return false end
+	local origin = platform.Position + Vector3.new(0, platform.Size.Y/2,0)
+	local direction = Vector3.new(0,2,0)
+	local rayParams = RaycastParams.new()
+	rayParams.FilterDescendantsInstances = {platform, LocalPlayer.Character}
+	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+	return not workspace:Raycast(origin,direction,rayParams)
+end
+
+local function setup3rdFloor(character)
+	local root = character:WaitForChild("HumanoidRootPart")
+	floorButton.MouseButton1Click:Connect(function()
+		active = not active
+		if active then
+			platform = Instance.new("Part")
+			platform.Size = Vector3.new(6,0.5,6)
+			platform.Anchored=true
+			platform.CanCollide=true
+			platform.Material=Enum.Material.Plastic
+			platform.Color=Color3.fromRGB(255,200,0)
+			platform.Position=root.Position-Vector3.new(0, root.Size.Y/2 + platform.Size.Y/2, 0)
+			platform.Parent = workspace
+
+			isRising=true
+			connection = RunService.Heartbeat:Connect(function(dt)
+				if platform and active then
+					local cur = platform.Position
+					local newXZ = Vector3.new(root.Position.X, cur.Y, root.Position.Z)
+					if isRising and canRise() then
+						platform.Position = newXZ + Vector3.new(0, dt*RISE_SPEED,0)
+					else
+						isRising=false
+						platform.Position=newXZ
+					end
+				end
+			end)
+			floorButton.BackgroundColor3=Color3.fromRGB(0,170,0)
+		else
+			destroyPlatform()
+		end
+	end)
+	character:WaitForChild("Humanoid").Died:Connect(destroyPlatform)
+end
+
+if LocalPlayer.Character then setup3rdFloor(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(setup3rdFloor)
+
+------------------------------------------------------------
+-- ESP (Orange)
+------------------------------------------------------------
+local espEnabled = false
+local espConnections = {}
+local BOX_COLOR = Color3.fromRGB(255, 120, 0)
+local BOX_TRANSPARENCY = 0.6
+
+local function clearESP()
+	for _, conn in pairs(espConnections) do conn:Disconnect() end
+	espConnections = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Character then
+			for _, obj in ipairs(p.Character:GetDescendants()) do
+				if obj:IsA("BoxHandleAdornment") or obj:IsA("BillboardGui") then
+					obj:Destroy()
+				end
+			end
+		end
+	end
+end
+
+local function createESP(character, player)
+	if character:FindFirstChild("HumanoidRootPart") then
+		local hrp = character.HumanoidRootPart
+		local box = Instance.new("BoxHandleAdornment")
+		box.Size = character:GetExtentsSize()
+		box.Adornee = character
+		box.Color3 = BOX_COLOR
+		box.Transparency = BOX_TRANSPARENCY
+		box.AlwaysOnTop = true
+		box.ZIndex = 5
+		box.Parent = hrp
+
+		local nameBillboard = Instance.new("BillboardGui")
+		nameBillboard.Adornee = hrp
+		nameBillboard.Size = UDim2.new(0, 80, 0, 15)
+		nameBillboard.StudsOffset = Vector3.new(0, 3, 0)
+		nameBillboard.AlwaysOnTop = true
+		nameBillboard.Parent = hrp
+
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Size = UDim2.new(1, 0, 1, 0)
+		nameLabel.BackgroundTransparency = 0.4
+		nameLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		nameLabel.Text = player.Name
+		nameLabel.Font = Enum.Font.Arcade
+		nameLabel.TextSize = 10
+		nameLabel.TextColor3 = Color3.fromRGB(255, 120, 0)
+		nameLabel.TextStrokeTransparency = 0.2
+		nameLabel.Parent = nameBillboard
+	end
+end
+
+local function onCharacterAdded(character, player)
+	task.wait(1)
+	if espEnabled then createESP(character, player) end
+end
+
+local function onPlayerAdded(player)
+	if player ~= LocalPlayer then
+		if player.Character then onCharacterAdded(player.Character, player) end
+		local conn = player.CharacterAdded:Connect(function(char)
+			onCharacterAdded(char, player)
+		end)
+		table.insert(espConnections, conn)
+	end
+end
+
+espButton.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	if espEnabled then
+		for _, p in ipairs(Players:GetPlayers()) do onPlayerAdded(p) end
+		table.insert(espConnections, Players.PlayerAdded:Connect(onPlayerAdded))
+		espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		clearESP()
+		espButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+	end
+end)
+
+------------------------------------------------------------
+-- SPEED BOOSTER BUTTON
+------------------------------------------------------------
+local speedConn
+local baseSpeed = 27
+local speedActive = false
+
+local function GetCharacter()
+	local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local HRP = Char:WaitForChild("HumanoidRootPart")
+	local Hum = Char:FindFirstChildOfClass("Humanoid")
+	return Char, HRP, Hum
+end
+
+local function getMovementInput()
+	local Char, HRP, Hum = GetCharacter()
+	if not Char or not HRP or not Hum then return Vector3.new(0,0,0) end
+	local moveVector = Hum.MoveDirection
+	if moveVector.Magnitude > 0.1 then
+		return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
+	end
+	return Vector3.new(0,0,0)
+end
+
+local function startSpeedControl()
+	if speedConn then return end
+	speedConn = RunService.Heartbeat:Connect(function()
+		local Char, HRP, Hum = GetCharacter()
+		if not Char or not HRP or not Hum then return end
+		local inputDirection = getMovementInput()
+		if inputDirection.Magnitude > 0 then
+			HRP.AssemblyLinearVelocity = Vector3.new(
+				inputDirection.X * baseSpeed,
+				HRP.AssemblyLinearVelocity.Y,
+				inputDirection.Z * baseSpeed
+			)
+		else
+			HRP.AssemblyLinearVelocity = Vector3.new(0, HRP.AssemblyLinearVelocity.Y, 0)
+		end
+	end)
+end
+
+local function stopSpeedControl()
+	if speedConn then speedConn:Disconnect() speedConn = nil end
+	local Char, HRP = GetCharacter()
+	if HRP then HRP.AssemblyLinearVelocity = Vector3.new(0, HRP.AssemblyLinearVelocity.Y, 0) end
+end
+
+speedButton.MouseButton1Click:Connect(function()
+	speedActive = not speedActive
+	if speedActive then
+		startSpeedControl()
+		speedButton.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	else
+		stopSpeedControl()
+		speedButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
+	end
+end)
