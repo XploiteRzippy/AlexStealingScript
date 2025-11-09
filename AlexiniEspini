@@ -1,0 +1,413 @@
+-- Alexini Espini (Pumpkin) LocalScript
+-- Paste into StarterPlayer > StarterPlayerScripts
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Helper to create styled buttons
+local function createButton(parent, name, text)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0.9, 0, 0, 32)
+	btn.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+	btn.Text = text
+	btn.Font = Enum.Font.Creepster
+	btn.TextColor3 = Color3.fromRGB(255, 120, 0)
+	btn.TextSize = 16
+	btn.TextStrokeTransparency = 0.8
+	btn.AutoButtonColor = true
+	local corner = Instance.new("UICorner", btn)
+	corner.CornerRadius = UDim.new(0, 8)
+	btn.Parent = parent
+	return btn
+end
+
+-- Top GUI: pumpkin toggle
+local topGui = Instance.new("ScreenGui")
+topGui.Name = "AlexiniTopToggles"
+topGui.Parent = PlayerGui
+
+local pumpkinToggle = Instance.new("TextButton", topGui)
+pumpkinToggle.Name = "PumpkinToggle"
+pumpkinToggle.Size = UDim2.new(0, 64, 0, 28)
+pumpkinToggle.Position = UDim2.new(0.02, 0, 0.02, 0)
+pumpkinToggle.Text = "🎃"
+pumpkinToggle.Font = Enum.Font.Creepster
+pumpkinToggle.TextSize = 20
+pumpkinToggle.TextColor3 = Color3.fromRGB(255,120,0)
+pumpkinToggle.BackgroundColor3 = Color3.fromRGB(30,30,30)
+pumpkinToggle.AutoButtonColor = true
+Instance.new("UICorner", pumpkinToggle).CornerRadius = UDim.new(0,8)
+pumpkinToggle.Active = true
+pumpkinToggle.Draggable = false
+
+-- Alexini Espini GUI
+local espGui = Instance.new("ScreenGui")
+espGui.Name = "AlexiniEspini"
+espGui.Parent = PlayerGui
+
+local espFrame = Instance.new("Frame", espGui)
+espFrame.Name = "EspFrame"
+espFrame.AnchorPoint = Vector2.new(0,0)
+espFrame.Position = UDim2.new(0.02, 0, 0.08, 0)
+espFrame.Size = UDim2.new(0, 220, 0, 24) -- height will auto-size
+espFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+espFrame.BorderSizePixel = 0
+espFrame.Active = true
+espFrame.Draggable = true
+
+Instance.new("UICorner", espFrame).CornerRadius = UDim.new(0, 12)
+local espStroke = Instance.new("UIStroke", espFrame)
+espStroke.Color = Color3.fromRGB(255,120,0)
+espStroke.Thickness = 2
+
+-- Title at top
+local espTitle = Instance.new("TextLabel", espFrame)
+espTitle.Name = "Title"
+espTitle.Size = UDim2.new(1, -12, 0, 36)
+espTitle.Position = UDim2.new(0,6,0,6)
+espTitle.BackgroundTransparency = 1
+espTitle.Text = "🎃 ALEXINI ESPINI 🎃"
+espTitle.Font = Enum.Font.Creepster
+espTitle.TextColor3 = Color3.fromRGB(255,120,0)
+espTitle.TextSize = 18
+espTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Layout: vertical, automatic size
+local espLayout = Instance.new("UIListLayout", espFrame)
+espLayout.SortOrder = Enum.SortOrder.LayoutOrder
+espLayout.Padding = UDim.new(0,6)
+espLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+espLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+
+espFrame.ClipsDescendants = true
+espFrame.AutomaticSize = Enum.AutomaticSize.Y
+espFrame.Size = UDim2.new(0, 220, 0, 10) -- initial, expands automatically
+
+-- Add small padding frame so Title sits as first element for layout
+local spacer = Instance.new("Frame", espFrame)
+spacer.Size = UDim2.new(1, 0, 0, 0)
+spacer.BackgroundTransparency = 1
+
+-- Buttons inside Espini (Best Pet, Plot Timers)
+local bestPetToggleBtn = createButton(espFrame, "BestPetToggle", "🐾 Best Pet ESP")
+local plotTimerToggleBtn = createButton(espFrame, "PlotTimersToggle", "🧱 View Base Lock Timers")
+
+-- Bottom spacer so last button isn't at the edge
+local bottomSpacer = Instance.new("Frame", espFrame)
+bottomSpacer.Size = UDim2.new(1,0,0,6) -- adjust 6px to desired padding
+bottomSpacer.BackgroundTransparency = 1
+
+-- Start hidden; pumpkin toggle controls it
+espFrame.Visible = false
+pumpkinToggle.MouseButton1Click:Connect(function()
+	espFrame.Visible = not espFrame.Visible
+end)
+
+----------------------------------------------------------------
+-- --------- Best Pet ESP (uses the code you provided) ----------
+----------------------------------------------------------------
+local PET_ESP_FOLDER = Instance.new("Folder")
+PET_ESP_FOLDER.Name = "ESP_Pets"
+PET_ESP_FOLDER.Parent = PlayerGui
+
+local PET_LINE_FOLDER = Instance.new("Folder")
+PET_LINE_FOLDER.Name = "ESP_Pet_Lines"
+PET_LINE_FOLDER.Parent = Workspace
+
+local currentESP = nil
+local currentBeam = nil
+local currentPetInfo = nil
+local a0, a1 = nil, nil
+local petESPLoop = nil
+local petESPEnabled = false
+
+local function parseMoneyPerSec(text)
+	if not text then return 0 end
+	text = text:match("^%s*(.-)%s*$") -- trim
+	local number, suffix = text:match("%$([%d%.]+)%s*([kKmMbB]?)%s*/?s?")
+	number = tonumber(number) or 0
+	if suffix then
+		suffix = suffix:lower()
+		if suffix == "k" then number = number * 1000
+		elseif suffix == "m" then number = number * 1_000_000
+		elseif suffix == "b" then number = number * 1_000_000_000 end
+	end
+	return number
+end
+
+local function createESP(petName, infoText, mutationText, targetPart)
+	if currentESP then
+		pcall(function() currentESP:Destroy() end)
+	end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 150, 0, 50)
+	billboard.AlwaysOnTop = true
+	billboard.Adornee = targetPart
+	billboard.Parent = PET_ESP_FOLDER
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextColor3 = Color3.fromRGB(255,255,255)
+	textLabel.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+	textLabel.TextStrokeTransparency = 0
+	textLabel.TextScaled = false
+	textLabel.TextSize = 10
+	textLabel.RichText = true
+
+	textLabel.Text = string.format(
+		'<font color="rgb(255,0,0)">%s</font>\n<font color="rgb(0,255,0)">%s</font>\n<font color="rgb(255,255,0)">%s</font>',
+		petName or "Unknown", infoText or "", mutationText or ""
+	)
+
+	textLabel.Parent = billboard
+	currentESP = billboard
+end
+
+local function createBeam(targetPart)
+	local char = LocalPlayer.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") or not targetPart then return end
+
+	if currentBeam then
+		pcall(function() currentBeam:Destroy() end)
+		if a0 then pcall(function() a0:Destroy() end) end
+		if a1 then pcall(function() a1:Destroy() end) end
+	end
+
+	a0 = Instance.new("Attachment")
+	a0.Parent = char.HumanoidRootPart
+
+	a1 = Instance.new("Attachment")
+	a1.Parent = targetPart
+
+	local beam = Instance.new("Beam")
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Width0 = 0.35
+	beam.Width1 = 0.35
+	beam.FaceCamera = true
+	beam.LightInfluence = 0
+	beam.Parent = PET_LINE_FOLDER
+
+	currentBeam = beam
+
+	task.spawn(function()
+		while beam.Parent do
+			local color = Color3.fromHSV((tick() % 5) / 5, 1, 1)
+			beam.Color = ColorSequence.new(color)
+			task.wait(0.05)
+		end
+	end)
+end
+
+local function findBestPet()
+	local PlotsFolder = Workspace:FindFirstChild("Plots")
+	if not PlotsFolder then return nil end
+
+	local bestValue = -1
+	local bestPet = nil
+
+	for _, plot in ipairs(PlotsFolder:GetChildren()) do
+		local podiums = plot:FindFirstChild("AnimalPodiums")
+		if podiums then
+			for _, podium in ipairs(podiums:GetChildren()) do
+				local spawnPart = podium:FindFirstChild("Base") and podium.Base:FindFirstChild("Spawn")
+				if spawnPart then
+					local attachment = spawnPart:FindFirstChild("Attachment")
+					local overhead = attachment and attachment:FindFirstChild("AnimalOverhead")
+					if overhead then
+						local nameLabel = overhead:FindFirstChild("DisplayName")
+						local genLabel = overhead:FindFirstChild("Generation")
+						local mutationLabel = overhead:FindFirstChild("Mutation")
+						if genLabel then
+							local petName = nameLabel and nameLabel.Text or "Unknown"
+							local genText = genLabel.Text
+							local mutationText = mutationLabel and mutationLabel.Text or ""
+							local mps = parseMoneyPerSec(genText)
+							local genNumber = tonumber(genText:match("%d+")) or 0
+							local value = mps > 0 and mps or genNumber
+
+							if value > bestValue then
+								bestValue = value
+								bestPet = {name = petName, info = genText, mutation = mutationText, part = spawnPart, value = value}
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return bestPet
+end
+
+local function startPetESP()
+	if petESPLoop then return end
+	petESPEnabled = true
+	petESPLoop = RunService.Heartbeat:Connect(function()
+		if not petESPEnabled then return end
+		local pet = findBestPet()
+		if pet then
+			local needUpdate = false
+			if not currentESP then needUpdate = true end
+			if currentPetInfo then
+				if pet.value > currentPetInfo.value or pet.mutation ~= currentPetInfo.mutation then
+					needUpdate = true
+				end
+			end
+			if needUpdate then
+				currentPetInfo = pet
+				createESP(pet.name, pet.info, pet.mutation, pet.part)
+				createBeam(pet.part)
+			end
+		else
+			if currentESP then pcall(function() currentESP:Destroy() end) currentESP = nil currentPetInfo = nil end
+			if currentBeam then pcall(function() currentBeam:Destroy() end) currentBeam = nil end
+		end
+	end)
+end
+
+local function stopPetESP()
+	petESPEnabled = false
+	if petESPLoop then petESPLoop:Disconnect() petESPLoop = nil end
+	if currentESP then pcall(function() currentESP:Destroy() end) currentESP = nil currentPetInfo = nil end
+	if currentBeam then pcall(function() currentBeam:Destroy() end) currentBeam = nil end
+end
+
+bestPetToggleBtn.MouseButton1Click:Connect(function()
+	if petESPEnabled then
+		stopPetESP()
+		bestPetToggleBtn.BackgroundColor3 = Color3.fromRGB(220,20,60)
+	else
+		startPetESP()
+		bestPetToggleBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	end
+end)
+
+----------------------------------------------------------------
+-- ---------- Plot Timer ESP (from your code) -------------------
+----------------------------------------------------------------
+local plotTimers_Enabled = false
+local plotTimers_RenderConnection = nil
+local plotTimers_OriginalProperties = {}
+
+local function disablePlotTimers()
+	plotTimers_Enabled = false
+	if plotTimers_RenderConnection then
+		plotTimers_RenderConnection:Disconnect()
+		plotTimers_RenderConnection = nil
+	end
+	for label, props in pairs(plotTimers_OriginalProperties) do
+		pcall(function()
+			if label and label.Parent then
+				local bb = label:FindFirstAncestorWhichIsA("BillboardGui")
+				if bb and bb.Parent then
+					bb.Enabled = props.bb_enabled
+					bb.AlwaysOnTop = props.bb_alwaysOnTop
+					bb.Size = props.bb_size
+					bb.MaxDistance = props.bb_maxDistance
+					label.TextScaled = props.label_textScaled
+					label.TextWrapped = props.label_textWrapped
+					label.AutomaticSize = props.label_automaticSize
+					label.Size = props.label_size
+					label.TextSize = props.label_textSize
+				end
+			end
+		end)
+	end
+	table.clear(plotTimers_OriginalProperties)
+end
+
+local function enablePlotTimers()
+	disablePlotTimers()
+	plotTimers_Enabled = true
+	local camera = workspace.CurrentCamera
+	local DISTANCE_THRESHOLD = 45
+	local SCALE_START, SCALE_RANGE = 100, 300
+	local MIN_TEXT_SIZE, MAX_TEXT_SIZE = 30, 36
+	local lastUpdate = 0
+
+	plotTimers_RenderConnection = RunService.RenderStepped:Connect(function()
+		if not plotTimers_Enabled then return end
+		if tick() - lastUpdate < 0.1 then return end
+		lastUpdate = tick()
+
+		if not workspace:FindFirstChild("Plots") then return end
+		for _, label in ipairs(workspace.Plots:GetDescendants()) do
+			if label:IsA("TextLabel") and label.Name == "RemainingTime" then
+				local bb = label:FindFirstAncestorWhichIsA("BillboardGui")
+				if not bb then continue end
+				local model = bb:FindFirstAncestorWhichIsA("Model")
+				if not model then continue end
+				local basePart = model:FindFirstChildWhichIsA("BasePart", true)
+				if not basePart then continue end
+				if not plotTimers_OriginalProperties[label] then
+					plotTimers_OriginalProperties[label] = {
+						bb_enabled = bb.Enabled,
+						bb_alwaysOnTop = bb.AlwaysOnTop,
+						bb_size = bb.Size,
+						bb_maxDistance = bb.MaxDistance,
+						label_textScaled = label.TextScaled,
+						label_textWrapped = label.TextWrapped,
+						label_automaticSize = label.AutomaticSize,
+						label_size = label.Size,
+						label_textSize = label.TextSize,
+					}
+				end
+				bb.MaxDistance = 10000
+				bb.AlwaysOnTop = true
+				bb.ClipsDescendants = false
+				bb.Size = UDim2.new(0, 300, 0, 150)
+				label.TextScaled = false
+				label.TextWrapped = true
+				label.ClipsDescendants = false
+				label.Size = UDim2.new(1, 0, 0, 32)
+				label.AutomaticSize = Enum.AutomaticSize.Y
+
+				local distance = (camera.CFrame.Position - basePart.Position).Magnitude
+				if distance > DISTANCE_THRESHOLD and basePart.Position.Y >= 0 then
+					bb.Enabled = false
+				else
+					bb.Enabled = true
+					local t = math.clamp((distance - SCALE_START) / SCALE_RANGE, 0, 1)
+					local newTextSize = math.clamp(MIN_TEXT_SIZE + (MAX_TEXT_SIZE - MIN_TEXT_SIZE) * t, MIN_TEXT_SIZE, MAX_TEXT_SIZE)
+					label.TextSize = newTextSize
+					label.Size = UDim2.new(1, 0, 0, newTextSize + 6)
+				end
+			end
+		end
+	end)
+end
+
+plotTimerToggleBtn.MouseButton1Click:Connect(function()
+	if plotTimers_Enabled then
+		disablePlotTimers()
+		plotTimerToggleBtn.BackgroundColor3 = Color3.fromRGB(220,20,60)
+	else
+		enablePlotTimers()
+		plotTimerToggleBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	end
+end)
+
+----------------------------------------------------------------
+-- Cleanup on player removing / respawn
+----------------------------------------------------------------
+Players.PlayerRemoving:Connect(function(plr)
+	if plr == LocalPlayer then
+		-- destroy any created GUI folders to avoid leftovers
+		pcall(function()
+			if PET_ESP_FOLDER then PET_ESP_FOLDER:Destroy() end
+			if PET_LINE_FOLDER then PET_LINE_FOLDER:Destroy() end
+		end)
+	end
+end)
+
+print("✅ Alexini Espini loaded (pumpkin toggle + BestPet & PlotTimers).")
